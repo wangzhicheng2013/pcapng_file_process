@@ -127,15 +127,14 @@ public:
                 std::cerr << "pcap_open_offline failed for file:" << pcap_file_path << " error msg:" << err_buf << std::endl;
                 continue;
             }
-            if (pkthdr.caplen > G_MAX_PCAP_BUFFER_BODY_LEN) {
-                pcap_close(pcap_ptr);
-                std::cerr << "read pcap body error." << std::endl;
-                continue;
-            }
             while (true) {
                 const u_char *pkt_buff = pcap_next(pcap_ptr, &pkthdr);
                 if (!pkt_buff) {
                     std::cerr << "pcapng read over." << std::endl;
+                    break;
+                }
+                if (pkthdr.caplen > G_MAX_PCAP_BUFFER_BODY_LEN) {
+                    std::cerr << "read pcap body error." << std::endl;
                     break;
                 }
                 cap_len = pkthdr.caplen;
