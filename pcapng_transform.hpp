@@ -1,6 +1,7 @@
 #pragma once
 #include <dirent.h>
 #include <fcntl.h>
+#include <pcap/pcap.h>
 #include "pcap_file_info.hpp"
 #include "daq_pkt_info.hpp"
 #include "file_utility.hpp"
@@ -94,6 +95,59 @@ public:
             if (false == read_header_error) {        // keep error pcap file
                 G_FILE_UTILITY.delete_file(pcap_file_path.c_str());
             }
+        }
+        closedir(dir);
+    }
+    // include pcap and pcapng
+    bool batch_process_pcaps(const char *dir_path) {
+        if (!dir_path) {
+            return false;
+        }
+        DIR *dir = opendir(dir_path);
+        if (!dir) {
+            std::cerr << dir_path << " open dir failed." << std::endl;
+            return false;
+        }
+        char err_buf[1024] = "";
+        struct dirent *ptr = nullptr;
+        std::string pcap_file_path;
+        uint32_t cap_len = 0;
+        uint32_t pkt_len = 0;
+        struct timeval tv = { 0 };
+        struct timezone tz = { 0 };
+        pcap_pkt_header header;
+        struct pcap_pkthdr pkthdr = { 0 };
+        while ((ptr = readdir(dir))) {
+            // transform pcapng to pcap
+            pcap_file_path = dir_path;
+            pcap_file_path += "/";
+            pcap_file_path += ptr->d_name;
+            pcap_t *pcap_ptr = pcap_open_offline(pcap_file_path.c_str(), err_buf);
+            if (!pcap_ptr) {
+                std::cerr << "pcap_open_offline failed for file:" << pcap_file_path << " error msg:" << err_buf << std::endl;
+                continue;
+            }
+            if (pkthdr.caplen > G_MAX_PCAP_BUFFER_BODY_LEN) {
+                pcap_close(pcap_ptr);
+                std::cerr << "read pcap body error." << std::endl;
+                continue;
+            }
+            while (true) {
+                const u_char *pkt_buff = pcap_next(pcap_ptr, &pkthdr);
+                if (!pkt_buff) {
+                    std::cerr << "pcapng read over." << std::endl;
+                    break;
+                }
+                cap_len = pkthdr.caplen;
+                pkt_len = pkthdr.len;
+                std::cout << "cap_len = " << cap_len << std::endl;
+                std::cout << "pkt_len = " << pkt_len << std::endl;
+                gettimeofday(&tv, &tz);
+                daq_pkt_header dph(tv, cap_len, pkt_len);
+                packet_call_back(dph, (uint8_t *)pcap_buffer_);
+            }
+            pcap_close(pcap_ptr);
+            G_FILE_UTILITY.delete_file(pcap_file_path.c_str());
         }
         closedir(dir);
     }
