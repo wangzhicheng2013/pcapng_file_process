@@ -108,7 +108,7 @@ public:
             std::cerr << dir_path << " open dir failed." << std::endl;
             return false;
         }
-        char err_buf[1024] = "";
+        char err_buf[PCAP_ERRBUF_SIZE] = "";
         struct dirent *ptr = nullptr;
         std::string pcap_file_path;
         uint32_t cap_len = 0;
